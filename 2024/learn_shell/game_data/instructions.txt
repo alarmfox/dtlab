@@ -1,0 +1,8 @@
+Welcome to the Shell Game!
+Your tasks:
+1. Create a directory inside game_data named 'level1'.
+2. Inside 'level1', create a file named 'task.txt' and write 'Shell Game' in it.
+3. Change the permissions of 'task.txt' to read-only.
+4. Find the hidden message in '.secret' and write it to 'secret_message.txt' in 'game_data'.
+
+Good luck!
