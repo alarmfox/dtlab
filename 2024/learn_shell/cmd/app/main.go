@@ -75,7 +75,6 @@ var advancedTasks = []*AdvancedTask{
       if err != nil {
         return false
       }
-      fmt.Println(string(f))
       return string(f) == ans
     },
   },
@@ -161,6 +160,9 @@ func main() {
 
 func setupGameEnvironment() error {
 	// Create a game_data directory
+  if err := os.RemoveAll(dirPath); err != nil {
+    return err
+  }
 	if err := os.Mkdir(dirPath, 0755); err != nil {
 		return err
 	}
@@ -221,7 +223,6 @@ func showSimpleTasks() {
 func askQuestions() {
 	reader := bufio.NewReader(os.Stdin)
 	for _, task := range advancedTasks {
-    fmt.Println(task)
     var answer string
 		for !task.CheckFn(answer) {
 			fmt.Printf("Question: %s\n", task.Description)
