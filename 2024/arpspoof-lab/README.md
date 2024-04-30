@@ -15,6 +15,15 @@ Every table is a LAN (as shown in the picture); you can choose your favourite ad
 
 You will need at least a Kali Linux per LAN: it will be used to perform the attack.
 
+### Attacker NIC in bridge mode
+If you are using Kali in a virtual machine you will need to obtain an ip address on the same LAN as 
+the victim and configure it. You will need to perform some modification in the Virtual Box configuration,
+like in the picture below. Change the Network interface type, from NAT to bridge and from within Kali 
+assign a valid IP configuration.
+
+![Bridge mode](./images/vbox.png)
+
+
 ## The arp protocol (brief) 
 ![Arp](./images/how-arp-works-2.jpg)
 
@@ -37,6 +46,7 @@ ip address
 
 **STOP**: analyze what you have done so far. Open Wireshark in the attacker and inspect the network traffic:
 does requests have a strange behaviour? Inspect the client: does he have connectivity?
+Perform a ping on a remote host: is this working? If not, why?
 
 ## What we can do with a man in the middle attack?
 Man in the middle attack allows attacker to modify traffic. For example, we can modify DNS queries: DNS spoofing.
@@ -51,4 +61,25 @@ Explore the social engineering toolkit:
 
 ```sh 
 sudo setoolkit
+```
+![SetOpen](./images/opening_set.png)
+
+Select `Website Attack Vectors` and then select `Credential Harvester Attack Method`
+![Harvester](./images/set-harvester.png)
+
+### Final Challange
+Reading the documentation, using online research, try to redirect the victim to the cloned website.
+
+*Hint*: dnsspoof wants a file like this.
+
+```
+# Sample hosts file for dnsspoof 
+#
+127.0.0.1       ad.*
+127.0.0.1       ads*.*
+127.0.0.1       adbot*.*
+127.0.0.1       adcount*.*
+127.0.0.1       adfinity*.*
+127.0.0.1       adforce*.*
+127.0.0.1       adimage*.*
 ```
