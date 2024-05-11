@@ -42,11 +42,22 @@ type Device struct {
 	Interfaces []Interface `json:"interfaces"`
 }
 
+type SimpleDevice struct {
+	ID     int    `json:"id"`
+	Serial string `json:"serial"`
+	Model  string `json:"model"`
+	Type   string `json:"type"`
+}
+
 type Database struct {
 	devices    map[int]Device
 	mu         sync.RWMutex
 	nextInt    int
 	lastAccess time.Time
+}
+
+type ApiError struct {
+	Message string `json:"message"`
 }
 
 var (
@@ -90,7 +101,7 @@ func initDatabase() *Database {
 	return &Database{
 		devices: db,
 		mu:      sync.RWMutex{},
-		nextInt: 3,
+		nextInt: len(db) + 1,
 	}
 }
 
@@ -115,17 +126,22 @@ func main() {
 
 }
 
-func makeHttpServer(ctx context.Context, httpServer string) *http.Server {
+func makeHttpServer(_ context.Context, httpServer string) *http.Server {
 
 	mux := http.NewServeMux()
 
 	var (
 		getAllHandler = http.HandlerFunc(getAll)
+		getOneHandler = http.HandlerFunc(getOne)
 		deleteHandler = http.HandlerFunc(deleteDevice)
+		createHandler = http.HandlerFunc(createDevice)
+		updateHandler = http.HandlerFunc(updateDevice)
 	)
 	mux.Handle("GET /", setSession(getAllHandler))
-
+	mux.Handle("GET /{id}", setSession(getOneHandler))
 	mux.Handle("DELETE /{id}", setSession(auth(deleteHandler)))
+	mux.Handle("POST /", setSession(auth(createHandler)))
+	mux.Handle("PUT /{id}", setSession(auth(updateHandler)))
 
 	server := http.Server{
 		Addr:              httpServer,
@@ -138,39 +154,67 @@ func makeHttpServer(ctx context.Context, httpServer string) *http.Server {
 	return &server
 }
 
-func getAll(w http.ResponseWriter, r *http.Request) {
+func getOne(w http.ResponseWriter, r *http.Request) {
 
-  database, err := getDatabase(r.Context())
-  if err != nil {
-    http.Error(w, "internal error", http.StatusInternalServerError)
-    return
-  }
+	database, err := getDatabase(r.Context())
+	if err != nil {
+		writeJson(w, http.StatusInternalServerError, ApiError{Message: "Internal server error"})
+		return
+	}
+
 	database.mu.RLock()
 	defer database.mu.RUnlock()
-	results := make([]Device, len(database.devices))
+
+	id := r.PathValue("id")
+	idInt, err := strconv.Atoi(id)
+	if err != nil {
+		writeJson(w, http.StatusBadRequest, ApiError{Message: fmt.Sprintf("invalid id: %v", err)})
+		return
+	}
+	device, exists := database.devices[idInt]
+
+	if !exists {
+		writeJson(w, http.StatusNotFound, ApiError{Message: fmt.Sprintf("device with id %q not found", id)})
+		return
+	}
+	if err := writeJson(w, http.StatusOK, device); err != nil {
+		writeJson(w, http.StatusInternalServerError, ApiError{Message: "internal server error"})
+	}
+}
+
+func getAll(w http.ResponseWriter, r *http.Request) {
+
+	database, err := getDatabase(r.Context())
+	if err != nil {
+		writeJson(w, http.StatusInternalServerError, ApiError{Message: "Internal server error"})
+		return
+	}
+	database.mu.RLock()
+	defer database.mu.RUnlock()
+	results := make([]SimpleDevice, len(database.devices))
 	i := 0
 	for _, v := range database.devices {
-		results[i] = v
+		results[i] = toSimple(v)
 		i += 1
 	}
-	if err := writeJson(w, results); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	if err := writeJson(w, http.StatusOK, results); err != nil {
+		writeJson(w, http.StatusInternalServerError, ApiError{Message: "internal server error"})
 	}
 }
 
 func deleteDevice(w http.ResponseWriter, r *http.Request) {
 
-  database, err := getDatabase(r.Context())
-  if err != nil {
-    http.Error(w, "internal error", http.StatusInternalServerError)
-    return
-  }
+	database, err := getDatabase(r.Context())
+	if err != nil {
+		writeJson(w, http.StatusInternalServerError, ApiError{Message: "internal server error"})
+		return
+	}
 	database.mu.Lock()
 	defer database.mu.Unlock()
 	id := r.PathValue("id")
 	idInt, err := strconv.Atoi(id)
 	if err != nil {
-		http.Error(w, "Invalid id", http.StatusBadRequest)
+		writeJson(w, http.StatusBadRequest, ApiError{Message: fmt.Sprintf("invalid id: %v", err)})
 		return
 	}
 	_, exists := database.devices[idInt]
@@ -184,22 +228,85 @@ func deleteDevice(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func createDevice(w http.ResponseWriter, r *http.Request) {
+	database, err := getDatabase(r.Context())
+	if err != nil {
+		writeJson(w, http.StatusInternalServerError, ApiError{Message: "Internal server error"})
+		return
+	}
+	database.mu.Lock()
+	defer database.mu.Unlock()
+
+	var device Device
+	if err := json.NewDecoder(r.Body).Decode(&device); err != nil {
+		writeJson(w, http.StatusBadRequest, ApiError{Message: fmt.Sprintf("malformed json body: %v", err)})
+		return
+	}
+	defer r.Body.Close()
+
+	id := database.nextInt
+	device.ID = id
+	database.devices[id] = device
+	database.nextInt += 1
+
+	if err := writeJson(w, http.StatusOK, device); err != nil {
+		writeJson(w, http.StatusInternalServerError, ApiError{Message: "internal server error"})
+	}
+
+
+}
+func updateDevice(w http.ResponseWriter, r *http.Request) {
+	database, err := getDatabase(r.Context())
+	if err != nil {
+		writeJson(w, http.StatusInternalServerError, ApiError{Message: "Internal server error"})
+		return
+	}
+	database.mu.Lock()
+	defer database.mu.Unlock()
+
+	id := r.PathValue("id")
+	idInt, err := strconv.Atoi(id)
+	if err != nil {
+		writeJson(w, http.StatusBadRequest, ApiError{Message: fmt.Sprintf("invalid id: %v", err)})
+		return
+	}
+	var device Device
+	if err := json.NewDecoder(r.Body).Decode(&device); err != nil {
+		writeJson(w, http.StatusBadRequest, ApiError{Message: fmt.Sprintf("malformed json body: %v", err)})
+		return
+	}
+	defer r.Body.Close()
+
+	_, exists := database.devices[idInt]
+
+	if !exists {
+		writeJson(w, http.StatusNotFound, ApiError{Message: fmt.Sprintf("device with id %q not found", id)})
+		return
+	}
+
+  device.ID = idInt
+	database.devices[idInt] = device
+	if err := writeJson(w, http.StatusCreated, device); err != nil {
+		writeJson(w, http.StatusInternalServerError, ApiError{Message: "internal server error"})
+	}
+}
+
 func auth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		token := r.Header.Get("Authorization")
 		parts := strings.Split(token, " ")
 		if len(parts) != 2 {
-			http.Error(w, "Bad authorization", http.StatusUnauthorized)
+		  writeJson(w, http.StatusUnauthorized, ApiError{Message: fmt.Sprintf("malformed authorization header")})
 			return
 		}
 
 		if parts[0] != "Bearer" {
-			http.Error(w, "Bad authorization", http.StatusUnauthorized)
+		  writeJson(w, http.StatusUnauthorized, ApiError{Message: fmt.Sprintf("malformed authorization header. Must start with \"Bearer\"")})
 			return
 		}
 
 		if parts[1] != key {
-			http.Error(w, "Bad authorization", http.StatusUnauthorized)
+		  writeJson(w, http.StatusUnauthorized, ApiError{Message: fmt.Sprintf("invalid key")})
 			return
 		}
 
@@ -207,8 +314,9 @@ func auth(next http.Handler) http.Handler {
 	})
 }
 
-func writeJson(w http.ResponseWriter, data any) error {
+func writeJson(w http.ResponseWriter, statusCode int, data any) error {
 	w.Header().Add("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
 
 	return json.NewEncoder(w).Encode(data)
 }
@@ -224,7 +332,7 @@ func setSession(next http.Handler) http.Handler {
 				Value:    token,
 				HttpOnly: true,
 			}
-		} else if err != nil{
+		} else if err != nil {
 			slog.Error("error", "cookie error", err)
 			return
 		}
@@ -247,17 +355,27 @@ func getToken(length int) string {
 	return base64.StdEncoding.EncodeToString(randomBytes)[:length]
 }
 
-func getDatabase(ctx context.Context) (*Database, error){
+func getDatabase(ctx context.Context) (*Database, error) {
 	token := ctx.Value(ctxKeyType(1))
 	if token == nil {
-		return nil, fmt.Errorf("error db not present") 
+		return nil, fmt.Errorf("error db not present")
 	}
 
 	database := sessions[token.(string)]
-  if database == nil {
-    database = initDatabase()
-    sessions[token.(string)] = database
-  }
-  return database, nil
+	if database == nil {
+		database = initDatabase()
+		sessions[token.(string)] = database
+	}
+	return database, nil
 
+}
+
+func toSimple(d Device) SimpleDevice {
+
+	return SimpleDevice{
+		ID:     d.ID,
+		Serial: d.Serial,
+		Model:  d.Model,
+		Type:   d.Type,
+	}
 }
