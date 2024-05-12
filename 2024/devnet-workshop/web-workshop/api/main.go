@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
 	"sync"
@@ -63,65 +64,55 @@ type ApiError struct {
 var (
 	sessions      map[string]*Database
 	listenAddress = flag.String("listen-addr", "0.0.0.0:3000", "Listen address for the server")
+	duration      = flag.Duration("clean-interval", time.Hour, "Interval to clean for session")
 )
-
-func initDatabase() *Database {
-	db := make(map[int]Device)
-	db[1] = Device{
-		ID:     1,
-		Serial: "CAT-2960-5483221",
-		Model:  "Catalyst-2960x-48p",
-		Type:   "SWL2",
-		Interfaces: []Interface{
-			{
-				Name:        "VLAN1",
-				Address:     "192.168.1.100",
-				Netmask:     "255.255.255.0",
-				Description: "A VLAN",
-				Status:      "Administrative down",
-			},
-		},
-	}
-	db[2] = Device{
-		ID:     2,
-		Serial: "CAT-2960-5483221",
-		Model:  "Catalyst-2960x-48p",
-		Type:   "SWL2",
-		Interfaces: []Interface{
-			{
-				Name:        "VLAN1",
-				Address:     "192.168.1.100",
-				Netmask:     "255.255.255.0",
-				Description: "A VLAN",
-				Status:      "Administrative down",
-			},
-		},
-	}
-
-	return &Database{
-		devices: db,
-		mu:      sync.RWMutex{},
-		nextInt: len(db) + 1,
-	}
-}
 
 func main() {
 
 	flag.Parse()
 
 	var (
-		logger = slog.New(slog.NewJSONHandler(os.Stdout, nil))
-		ctx    = context.Background()
+		logger = slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+			Level: slog.LevelDebug,
+		}))
+		ctx = context.Background()
 	)
+
+	slog.SetDefault(logger)
 
 	sessions = make(map[string]*Database)
 
 	server := makeHttpServer(ctx, *listenAddress)
 	logger.Info("listening on", "address", *listenAddress)
 
-	if err := server.ListenAndServe(); err != nil {
-		logger.Error("listen error", "error", err)
-		os.Exit(2)
+	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt, os.Kill)
+	defer cancel()
+
+	go func() {
+		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			logger.Error("listen error", "error", err)
+			os.Exit(2)
+		}
+	}()
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(*duration):
+				logger.Debug("cleaning up")
+				cleanup()
+			}
+		}
+	}()
+
+	<-ctx.Done()
+
+	logger.Info("got termination signal")
+
+	if err := server.Shutdown(context.Background()); err != nil {
+		logger.Error("error closing server", "error", err)
 	}
 
 }
@@ -137,11 +128,12 @@ func makeHttpServer(_ context.Context, httpServer string) *http.Server {
 		createHandler = http.HandlerFunc(createDevice)
 		updateHandler = http.HandlerFunc(updateDevice)
 	)
+
 	mux.Handle("GET /", setSession(getAllHandler))
-	mux.Handle("GET /{id}", setSession(getOneHandler))
-	mux.Handle("DELETE /{id}", setSession(auth(deleteHandler)))
 	mux.Handle("POST /", setSession(auth(createHandler)))
+	mux.Handle("GET /{id}", setSession(getOneHandler))
 	mux.Handle("PUT /{id}", setSession(auth(updateHandler)))
+	mux.Handle("DELETE /{id}", setSession(auth(deleteHandler)))
 
 	server := http.Server{
 		Addr:              httpServer,
@@ -253,7 +245,6 @@ func createDevice(w http.ResponseWriter, r *http.Request) {
 		writeJson(w, http.StatusInternalServerError, ApiError{Message: "internal server error"})
 	}
 
-
 }
 func updateDevice(w http.ResponseWriter, r *http.Request) {
 	database, err := getDatabase(r.Context())
@@ -284,7 +275,7 @@ func updateDevice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-  device.ID = idInt
+	device.ID = idInt
 	database.devices[idInt] = device
 	if err := writeJson(w, http.StatusCreated, device); err != nil {
 		writeJson(w, http.StatusInternalServerError, ApiError{Message: "internal server error"})
@@ -296,17 +287,17 @@ func auth(next http.Handler) http.Handler {
 		token := r.Header.Get("Authorization")
 		parts := strings.Split(token, " ")
 		if len(parts) != 2 {
-		  writeJson(w, http.StatusUnauthorized, ApiError{Message: fmt.Sprintf("malformed authorization header")})
+			writeJson(w, http.StatusUnauthorized, ApiError{Message: fmt.Sprintf("malformed authorization header")})
 			return
 		}
 
 		if parts[0] != "Bearer" {
-		  writeJson(w, http.StatusUnauthorized, ApiError{Message: fmt.Sprintf("malformed authorization header. Must start with \"Bearer\"")})
+			writeJson(w, http.StatusUnauthorized, ApiError{Message: fmt.Sprintf("malformed authorization header. Must start with \"Bearer\"")})
 			return
 		}
 
 		if parts[1] != key {
-		  writeJson(w, http.StatusUnauthorized, ApiError{Message: fmt.Sprintf("invalid key")})
+			writeJson(w, http.StatusUnauthorized, ApiError{Message: fmt.Sprintf("invalid key")})
 			return
 		}
 
@@ -377,5 +368,54 @@ func toSimple(d Device) SimpleDevice {
 		Serial: d.Serial,
 		Model:  d.Model,
 		Type:   d.Type,
+	}
+}
+
+func initDatabase() *Database {
+	db := make(map[int]Device)
+	db[1] = Device{
+		ID:     1,
+		Serial: "CAT-2960-5483221",
+		Model:  "Catalyst-2960x-48p",
+		Type:   "SWL2",
+		Interfaces: []Interface{
+			{
+				Name:        "VLAN1",
+				Address:     "192.168.1.100",
+				Netmask:     "255.255.255.0",
+				Description: "A VLAN",
+				Status:      "Administrative down",
+			},
+		},
+	}
+	db[2] = Device{
+		ID:     2,
+		Serial: "CAT-2960-5483221",
+		Model:  "Catalyst-2960x-48p",
+		Type:   "SWL2",
+		Interfaces: []Interface{
+			{
+				Name:        "VLAN1",
+				Address:     "192.168.1.100",
+				Netmask:     "255.255.255.0",
+				Description: "A VLAN",
+				Status:      "Administrative down",
+			},
+		},
+	}
+
+	return &Database{
+		devices: db,
+		mu:      sync.RWMutex{},
+		nextInt: len(db) + 1,
+	}
+}
+
+func cleanup() {
+
+	for id, session := range sessions {
+		if time.Since(session.lastAccess) > time.Hour*5 {
+			delete(sessions, id)
+		}
 	}
 }
