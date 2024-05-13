@@ -1,8 +1,11 @@
 import os
 import requests
 
+from dotenv import load_dotenv
 
-access_token = os.getenv("WEBEX_API_TOKEN")
+load_dotenv()
+
+access_token = os.getenv("WEBEXAPI_TOKEN")
 
 url = 'https://webexapis.com/v1/rooms'
 

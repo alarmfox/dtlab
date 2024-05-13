@@ -2,6 +2,10 @@ import os
 import sys
 import requests
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 access_token = os.getenv("WEBEXAPI_TOKEN")
 
 if access_token is None:
