@@ -1,5 +1,6 @@
 from flask import Flask, request
 from dotenv import load_dotenv
+from requests_toolbelt.multipart.encoder import MultipartEncoder
 
 import requests
 import os
@@ -48,8 +49,10 @@ def create_webhook(public_url: str) -> None:
     }
     res = requests.post(url, headers=headers, json=body)
 
-    res.raise_for_status()
 
+    if res.status_code != 200:
+        print("error creating webhook continuing anyways")
+        print(res.json())
 
 print("connecting to ngrok local api...")
 ngrok_url = get_public_url()
@@ -100,6 +103,15 @@ def get_catfact() -> str:
     return json_data["fact"]
 
 
+def get_image():
+    url = "https://cataas.com/cat"
+
+    res = requests.get(url)
+
+    res.raise_for_status()
+
+    return res.content
+
 def send_message(text: str, room_id: str) -> None:
     url = base_url + "/v1/messages"
     res = requests.post(url, headers=headers, json={
@@ -110,10 +122,32 @@ def send_message(text: str, room_id: str) -> None:
     print(res.json())
 
 
-def execute_cmd(cmd: str) -> str:
+def send_image(content, room_id: str) -> None:
+    m = MultipartEncoder({'roomId': room_id,
+                          'text': 'Here is your picture',
+                          'files': ('cat.png', content,
+                                    'image/png')})
+
+    r = requests.post('https://webexapis.com/v1/messages', data=m,
+                      headers={
+                        "Authorization": "Bearer {}".format(access_token),
+                        "Content-Type": m.content_type
+                      }
+                      )
+
+    r.raise_for_status()
+
+    print(r.json())
+
+
+def execute_cmd(cmd: str, room_id: str) -> str:
 
     if cmd.lower().startswith("/cat"):
-        return get_catfact()
+        fact = get_catfact()
+        send_message(fact, room_id)
+    elif cmd.lower().startswith("/image"):
+        image = get_image()
+        send_image(image, room_id)
     else:
         return "Sorry, I didn't understand"
 
@@ -147,9 +181,6 @@ def webhook():
     # print(message)
 
     # parse message
-    response = execute_cmd(message["text"])
-
-    # send response to user
-    send_message(response, room_id)
+    execute_cmd(message["text"], room_id)
 
     return "OK"
