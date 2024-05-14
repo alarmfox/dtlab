@@ -18,6 +18,24 @@ Before you start working on the lab tasks, you need to install the required Pyth
 
 2. **Install Dependencies**: Run the following command to install the dependencies using pip:
 
-   ```bash
+```bash
    pip install -r requirements.txt
+```
 
+## Lab Tasks
+
+Your main task is to extend the functionality of the chatbot by adding new commands. You can refer to the provided functions and existing commands as examples.
+
+### Task 1: Add Command to Send Cat Images
+Your first task is to add a command that allows the chatbot to send cat images to users. You can use the [Cataas API](https://cataas.com/cat) to fetch cat images.
+With this simple script you can save the image as a `png`:
+```python
+r = requests.get("https://cataas.com/cat")
+with open("out.png", "wb") as f:
+    f.write(r.content)
+```
+Use [this article](https://developer.webex.com/docs/basics), to understand how to send attachments to a Webex message.
+### Task 2: Add More Commands (Optional)
+If you finish Task 1 quickly and want to further enhance your chatbot, you can add more commands of your choice. For example, you can add commands to fetch jokes, weather updates, or news articles.
+
+webhook: Y2lzY29zcGFyazovL3VzL1dFQkhPT0svZWExNGI1ZWQtMjQ1Ni00ZDNkLTk0ZDAtOTZhYjY1ZWRkNTEx

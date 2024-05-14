@@ -9,3 +9,4 @@ app = Flask(__name__)
 def webhook():
     body = request.json
     print(body)
+    return "OK"

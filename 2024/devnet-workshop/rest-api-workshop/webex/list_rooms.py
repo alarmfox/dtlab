@@ -14,6 +14,8 @@ headers = {
     'Content-Type': 'application/json'
 }
 params = {'max': '100'}
+
 res = requests.get(url, headers=headers, params=params)
 
-print(res.text)
+res.raise_for_status()
+print(res.text, res.status_code)

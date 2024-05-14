@@ -5,6 +5,8 @@ import requests
 import os
 import sys
 
+# put your token in a file `.env`
+# BOT_TOKEN=<your token>
 load_dotenv()
 
 access_token = os.getenv("BOT_TOKEN")
@@ -20,6 +22,42 @@ headers = {
 }
 
 app = Flask(__name__)
+
+# Dynamic webhook creation
+# Ngrok runs a local REST API
+# the bot can use the api to get the random generated url
+# and create a webhook or updating an existing one
+
+
+def get_public_url() -> str:
+    res = requests.get("http://localhost:4040/api/tunnels")
+    res.raise_for_status()
+    tunnels = res.json()
+    return tunnels['tunnels'][0]['public_url']
+
+# update webhook
+
+
+def create_webhook(public_url: str) -> None:
+    url = base_url + "/v1/webhooks"
+    body = {
+        "name": "webex-bot",
+        "targetUrl": public_url + "/webhook",
+        "resource": "messages",
+        "event": "created"
+    }
+    res = requests.post(url, headers=headers, json=body)
+
+    res.raise_for_status()
+
+
+print("connecting to ngrok local api...")
+ngrok_url = get_public_url()
+print("found ngrok public url", ngrok_url)
+
+print("attempting to update webhook", sys.argv[1])
+create_webhook(ngrok_url)
+print("updated webhook successfully")
 
 
 def get_room_details(id: str) -> dict:
@@ -63,7 +101,7 @@ def get_catfact() -> str:
 
 
 def send_message(text: str, room_id: str) -> None:
-    url = base_url + "/v1/messages/"
+    url = base_url + "/v1/messages"
     res = requests.post(url, headers=headers, json={
                         "text": text, "roomId": room_id})
 
@@ -73,10 +111,11 @@ def send_message(text: str, room_id: str) -> None:
 
 
 def execute_cmd(cmd: str) -> str:
+
     if cmd.lower().startswith("/cat"):
         return get_catfact()
     else:
-        raise Exception("unknonw command")
+        return "Sorry, I didn't understand"
 
 
 @app.route("/webhook", methods=["POST"])
