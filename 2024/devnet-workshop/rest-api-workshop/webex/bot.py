@@ -1,25 +1,25 @@
-from flask import Flask, request
-from dotenv import load_dotenv
-from requests_toolbelt.multipart.encoder import MultipartEncoder
-
-import requests
 import os
 import sys
+
+import requests
+from dotenv import load_dotenv
+from flask import Flask, request
+from requests_toolbelt.multipart.encoder import MultipartEncoder
 
 # put your token in a file `.env`
 # BOT_TOKEN=<your token>
 load_dotenv()
 
 access_token = os.getenv("BOT_TOKEN")
-base_url = 'https://webexapis.com'
+base_url = "https://webexapis.com"
 
 if access_token is None:
     print("Missing access token")
     sys.exit(1)
 
 headers = {
-    'Authorization': 'Bearer {}'.format(access_token),
-    'Content-Type': 'application/json'
+    "Authorization": "Bearer {}".format(access_token),
+    "Content-Type": "application/json",
 }
 
 app = Flask(__name__)
@@ -34,7 +34,8 @@ def get_public_url() -> str:
     res = requests.get("http://localhost:4040/api/tunnels")
     res.raise_for_status()
     tunnels = res.json()
-    return tunnels['tunnels'][0]['public_url']
+    return tunnels["tunnels"][0]["public_url"]
+
 
 # update webhook
 
@@ -45,14 +46,14 @@ def create_webhook(public_url: str) -> None:
         "name": "webex-bot",
         "targetUrl": public_url + "/webhook",
         "resource": "messages",
-        "event": "created"
+        "event": "created",
     }
     res = requests.post(url, headers=headers, json=body)
-
 
     if res.status_code != 200:
         print("error creating webhook continuing anyways")
         print(res.json())
+
 
 print("connecting to ngrok local api...")
 ngrok_url = get_public_url()
@@ -112,10 +113,10 @@ def get_image():
 
     return res.content
 
+
 def send_message(text: str, room_id: str) -> None:
     url = base_url + "/v1/messages"
-    res = requests.post(url, headers=headers, json={
-                        "text": text, "roomId": room_id})
+    res = requests.post(url, headers=headers, json={"text": text, "roomId": room_id})
 
     res.raise_for_status()
 
@@ -123,17 +124,22 @@ def send_message(text: str, room_id: str) -> None:
 
 
 def send_image(content, room_id: str) -> None:
-    m = MultipartEncoder({'roomId': room_id,
-                          'text': 'Here is your picture',
-                          'files': ('cat.png', content,
-                                    'image/png')})
+    m = MultipartEncoder(
+        {
+            "roomId": room_id,
+            "text": "Here is your picture",
+            "files": ("cat.png", content, "image/png"),
+        }
+    )
 
-    r = requests.post('https://webexapis.com/v1/messages', data=m,
-                      headers={
-                        "Authorization": "Bearer {}".format(access_token),
-                        "Content-Type": m.content_type
-                      }
-                      )
+    r = requests.post(
+        "https://webexapis.com/v1/messages",
+        data=m,
+        headers={
+            "Authorization": "Bearer {}".format(access_token),
+            "Content-Type": m.content_type,
+        },
+    )
 
     r.raise_for_status()
 
