@@ -22,6 +22,7 @@ type AdvancedTask struct {
 	Completed   bool
 	CheckFn     func(ans string) bool
 }
+
 const dirPath = "data"
 
 var start time.Time
@@ -68,16 +69,16 @@ var tasks = []*Task{
 
 var advancedTasks = []*AdvancedTask{
 	// Add advanced tasks here
-  {
-    Description: "What is the content of '.secret' file in the data folder?",
-    CheckFn: func(ans string) bool {
-      f, err := os.ReadFile("data/.secret")
-      if err != nil {
-        return false
-      }
-      return string(f) == ans
-    },
-  },
+	{
+		Description: "What is the content of '.secret' file in the data folder?",
+		CheckFn: func(ans string) bool {
+			f, err := os.ReadFile("data/.secret")
+			if err != nil {
+				return false
+			}
+			return string(f) == ans
+		},
+	},
 }
 
 func listTasks() {
@@ -134,7 +135,7 @@ func checkEvent(event fsnotify.Event) {
 }
 
 func main() {
-  start = time.Now()
+	start = time.Now()
 	first := true
 	setupGameEnvironment()
 	go watchTasks() // Start watching filesystem events in a goroutine
@@ -145,13 +146,13 @@ func main() {
 			fmt.Println("Now it's time for the hard ones!")
 			first = !first
 		}
-    if allAdvancedTasksCompleted() {
-      fmt.Println("Congratulation! You won the game!")
-      duration := time.Since(start)
-      token := base64.StdEncoding.EncodeToString([]byte(duration.String()))
-      fmt.Println("Your score token is ", token)
-      fmt.Println("Submit to \"https://dtlab.capass.org/shell?code=<your-token>\" to get the score!")
-    }
+		if allAdvancedTasksCompleted() {
+			fmt.Println("Congratulation! You won the game!")
+			duration := time.Since(start)
+			token := base64.StdEncoding.EncodeToString([]byte(duration.String()))
+			fmt.Println("Your score token is ", token)
+			fmt.Println("Submit to \"https://shell-game.capass.org/shell?code=<your-token>\" to get the score!")
+		}
 		showMenu()
 		handleUserInput()
 
@@ -160,9 +161,9 @@ func main() {
 
 func setupGameEnvironment() error {
 	// Create a game_data directory
-  if err := os.RemoveAll(dirPath); err != nil {
-    return err
-  }
+	if err := os.RemoveAll(dirPath); err != nil {
+		return err
+	}
 	if err := os.Mkdir(dirPath, 0755); err != nil {
 		return err
 	}
@@ -205,7 +206,7 @@ func allTasksCompleted() bool {
 
 func allAdvancedTasksCompleted() bool {
 
-	for _, task := range advancedTasks{
+	for _, task := range advancedTasks {
 		if !task.Completed {
 			return false
 		}
@@ -223,7 +224,7 @@ func showSimpleTasks() {
 func askQuestions() {
 	reader := bufio.NewReader(os.Stdin)
 	for _, task := range advancedTasks {
-    var answer string
+		var answer string
 		for !task.CheckFn(answer) {
 			fmt.Printf("Question: %s\n", task.Description)
 			fmt.Print("Your answer: ")
@@ -231,7 +232,7 @@ func askQuestions() {
 			answer = answer[:len(answer)-1] // Remove the newline character
 			fmt.Println("Your answer is:", answer)
 		}
-    task.Completed = true
+		task.Completed = true
 	}
 }
 
@@ -254,7 +255,7 @@ func handleUserInput() {
 	case 1:
 		showSimpleTasks()
 	case 2:
-    askQuestions()
+		askQuestions()
 	case 0:
 		fmt.Println("Exiting game.")
 		os.Exit(0)

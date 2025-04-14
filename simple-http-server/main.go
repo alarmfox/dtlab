@@ -2,7 +2,9 @@ package main
 
 import (
 	"embed"
+	"flag"
 	"fmt"
+	"log"
 	"net/http"
 )
 
@@ -107,6 +109,8 @@ const homePage = `<div class="bg-black text-white flex min-h-screen flex-col ite
 </div>`
 
 func main() {
+	listenAddress := flag.String("listen-addr", ":3000", "Listen address")
+	flag.Parse()
 
 	http.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "text/html")
@@ -143,6 +147,6 @@ func main() {
 
 	})
 
-  fmt.Println("Listening on port 80")
-	http.ListenAndServe("0.0.0.0:80", nil)
+	fmt.Printf("Listening on port %s", *listenAddress)
+	log.Fatal(http.ListenAndServe(*listenAddress, nil))
 }
