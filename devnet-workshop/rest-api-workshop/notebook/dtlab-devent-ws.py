@@ -65,7 +65,6 @@ def _(mo):
 
         - `json.loads`: converts a JSON string in a Python dictionary
         - `json.dumps`: converts a Python dictionary in a JSON string
-
         """
     )
     return
@@ -151,7 +150,7 @@ def _(mo):
         ```py
         import requests
 
-        url = "https://dtlab.capass.org"
+        url = "https://dtlab-api.capass.org"
 
         requests.get(url)
         ```
