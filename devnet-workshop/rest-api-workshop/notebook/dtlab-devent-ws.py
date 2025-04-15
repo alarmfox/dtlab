@@ -12,6 +12,8 @@ def _(mo):
 
         Welcome!
 
+        Follow this presentation at: https://marimo.app/?slug=pfzza1
+
         In this workshop, you will learn about:
 
         - [] APIs
