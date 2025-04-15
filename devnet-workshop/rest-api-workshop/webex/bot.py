@@ -1,16 +1,9 @@
-import os
 import sys
-
 import requests
-from dotenv import load_dotenv
 from flask import Flask, request
 from requests_toolbelt.multipart.encoder import MultipartEncoder
 
-# put your token in a file `.env`
-# BOT_TOKEN=<your token>
-load_dotenv()
-
-access_token = os.getenv("BOT_TOKEN")
+access_token = "NTg0YzhhOWUtNzk2ZC00ZGZmLWIzYjItNGVkZThmMzE3YjQyNjJlNmVmYjItMGUw_PF84_9db17efa-dc2f-4ca3-90ae-30a52866391a"
 base_url = "https://webexapis.com"
 
 if access_token is None:
@@ -28,16 +21,11 @@ app = Flask(__name__)
 # Ngrok runs a local REST API
 # the bot can use the api to get the random generated url
 # and create a webhook or updating an existing one
-
-
 def get_public_url() -> str:
     res = requests.get("http://localhost:4040/api/tunnels")
     res.raise_for_status()
     tunnels = res.json()
     return tunnels["tunnels"][0]["public_url"]
-
-
-# update webhook
 
 
 def create_webhook(public_url: str) -> None:
@@ -50,18 +38,28 @@ def create_webhook(public_url: str) -> None:
     }
     res = requests.post(url, headers=headers, json=body)
 
-    if res.status_code != 200:
-        print("error creating webhook continuing anyways")
-        print(res.json())
+    if res.status_code == 409:
+        print("webhooks already exists, removing existing one")
+        # get all webhooks
+        webhooks = requests.get(url, headers = headers).json()
+        # find the webhook which gives conflicts and remove it
+        for webhook in webhooks["items"]:
+            if webhook["targetUrl"] == public_url or webhook["name"] == "webex-bot":
+                print(webhook)
+                print(requests.delete(url + f"/{webhook["id"]}", headers = headers))
+
+        # finally re-create the webhook
+        requests.post(url, headers=headers, json=body).raise_for_status()
+
 
 
 print("connecting to ngrok local api...")
 ngrok_url = get_public_url()
 print("found ngrok public url", ngrok_url)
 
-print("attempting to update webhook", sys.argv[1])
+print("attempting to create webhook")
 create_webhook(ngrok_url)
-print("updated webhook successfully")
+print("webhook created successfully")
 
 
 def get_room_details(id: str) -> dict:
@@ -155,7 +153,7 @@ def execute_cmd(cmd: str, room_id: str) -> str:
         image = get_image()
         send_image(image, room_id)
     else:
-        return "Sorry, I didn't understand"
+        send_message("Sorry, I didn't understand", room_id)
 
 
 @app.route("/webhook", methods=["POST"])
@@ -190,3 +188,6 @@ def webhook():
     execute_cmd(message["text"], room_id)
 
     return "OK"
+
+if __name__ == "__main__":
+    app.run()
