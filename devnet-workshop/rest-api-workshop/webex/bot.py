@@ -17,6 +17,7 @@ headers = {
 
 app = Flask(__name__)
 
+
 # Dynamic webhook creation
 # Ngrok runs a local REST API
 # the bot can use the api to get the random generated url
@@ -41,16 +42,15 @@ def create_webhook(public_url: str) -> None:
     if res.status_code == 409:
         print("webhooks already exists, removing existing one")
         # get all webhooks
-        webhooks = requests.get(url, headers = headers).json()
+        webhooks = requests.get(url, headers=headers).json()
         # find the webhook which gives conflicts and remove it
         for webhook in webhooks["items"]:
             if webhook["targetUrl"] == public_url or webhook["name"] == "webex-bot":
                 print(webhook)
-                print(requests.delete(url + f"/{webhook["id"]}", headers = headers))
+                requests.delete(url + f"/{webhook['id']}", headers=headers)
 
         # finally re-create the webhook
         requests.post(url, headers=headers, json=body).raise_for_status()
-
 
 
 print("connecting to ngrok local api...")
@@ -145,7 +145,6 @@ def send_image(content, room_id: str) -> None:
 
 
 def execute_cmd(cmd: str, room_id: str) -> str:
-
     if cmd.lower().startswith("/cat"):
         fact = get_catfact()
         send_message(fact, room_id)
@@ -188,6 +187,7 @@ def webhook():
     execute_cmd(message["text"], room_id)
 
     return "OK"
+
 
 if __name__ == "__main__":
     app.run()
