@@ -2,7 +2,7 @@ import requests
 from webex_bot.commands.echo import EchoCommand, Command
 from webex_bot.webex_bot import WebexBot
 
-access_token = "NTg0YzhhOWUtNzk2ZC00ZGZmLWIzYjItNGVkZThmMzE3YjQyNjJlNmVmYjItMGUw_PF84_9db17efa-dc2f-4ca3-90ae-30a52866391a"
+access_token = ""
 
 scan_card = {
     "type": "AdaptiveCard",
@@ -71,4 +71,3 @@ bot.add_command(Scan())
 
 # Call `run` for the bot to wait for incoming messages.
 bot.run()
-
