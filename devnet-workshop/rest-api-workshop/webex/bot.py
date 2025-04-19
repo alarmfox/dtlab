@@ -3,7 +3,7 @@ import requests
 from flask import Flask, request
 from requests_toolbelt.multipart.encoder import MultipartEncoder
 
-access_token = "NTg0YzhhOWUtNzk2ZC00ZGZmLWIzYjItNGVkZThmMzE3YjQyNjJlNmVmYjItMGUw_PF84_9db17efa-dc2f-4ca3-90ae-30a52866391a"
+access_token = ""
 base_url = "https://webexapis.com"
 
 if access_token is None:
@@ -13,6 +13,25 @@ if access_token is None:
 headers = {
     "Authorization": "Bearer {}".format(access_token),
     "Content-Type": "application/json",
+}
+
+scan_card = {
+    "type": "AdaptiveCard",
+    "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+    "version": "1.2",
+    "body": [
+        {
+            "type": "TextBlock",
+            "text": "Enter the IP address to scan:",
+            "wrap": True,
+        },
+        {
+            "type": "Input.Text",
+            "id": "ipAddress",
+            "placeholder": "e.g. 192.168.1.1",
+        },
+    ],
+    "actions": [{"type": "Action.Submit", "title": "Scan"}],
 }
 
 app = Flask(__name__)
@@ -29,37 +48,43 @@ def get_public_url() -> str:
     return tunnels["tunnels"][0]["public_url"]
 
 
-def create_webhook(public_url: str) -> None:
+def create_webhook(
+    public_url: str, name: str, resource: str, event: str = "created"
+) -> None:
     url = base_url + "/v1/webhooks"
     body = {
-        "name": "webex-bot",
-        "targetUrl": public_url + "/webhook",
-        "resource": "messages",
-        "event": "created",
+        "name": name,
+        "targetUrl": public_url,
+        "resource": resource,
+        "event": event,
     }
     res = requests.post(url, headers=headers, json=body)
 
     if res.status_code == 409:
-        print("webhooks already exists, removing existing one")
+        print("webhooks already exists, removing existing one if necessary")
         # get all webhooks
         webhooks = requests.get(url, headers=headers).json()
         # find the webhook which gives conflicts and remove it
         for webhook in webhooks["items"]:
-            if webhook["targetUrl"] == public_url or webhook["name"] == "webex-bot":
-                print(webhook)
+            if webhook["name"] == "webex-bot" and webhook["targetUrl"] != public_url:
                 requests.delete(url + f"/{webhook['id']}", headers=headers)
+                # finally re-create the webhook
+                requests.post(url, headers=headers, json=body).raise_for_status()
 
-        # finally re-create the webhook
-        requests.post(url, headers=headers, json=body).raise_for_status()
 
-
-print("connecting to ngrok local api...")
+print("connecting to ngrok local api...", end="")
 ngrok_url = get_public_url()
 print("found ngrok public url", ngrok_url)
 
-print("attempting to create webhook")
-create_webhook(ngrok_url)
-print("webhook created successfully")
+print("attempting to create webhook for messages...", end="")
+create_webhook(ngrok_url + "/webhook/messages", "webex-bot-messages", "messages")
+print("ok")
+
+print("attempting to create webhook for attachment actions (cards)...", end="")
+create_webhook(
+    ngrok_url + "/webhook/attachment-actions", "webex-bot-cards", "attachmentActions"
+)
+print("ok")
 
 
 def get_room_details(id: str) -> dict:
@@ -112,20 +137,31 @@ def get_image():
     return res.content
 
 
-def send_message(text: str, room_id: str) -> None:
+def send_simple_text_message(
+    room_id: str, text: str, parentId: str | None = None
+) -> None:
     url = base_url + "/v1/messages"
-    res = requests.post(url, headers=headers, json={"text": text, "roomId": room_id})
+    res = requests.post(
+        url,
+        headers=headers,
+        json={
+            "text": text,
+            "roomId": room_id,
+            "parentId": parentId,
+        },
+    )
 
-    res.raise_for_status()
+    # res.raise_for_status()
 
     print(res.json())
 
 
-def send_image(content, room_id: str) -> None:
+def send_image(room_id: str, content: str | bytes, parentId: str) -> None:
     m = MultipartEncoder(
         {
             "roomId": room_id,
             "text": "Here is your picture",
+            "parentId": parentId,
             "files": ("cat.png", content, "image/png"),
         }
     )
@@ -144,25 +180,62 @@ def send_image(content, room_id: str) -> None:
     print(r.json())
 
 
-def execute_cmd(cmd: str, room_id: str) -> str:
-    if cmd.lower().startswith("/cat"):
+def send_card(room_id: str, card_content: dict, parentId: str) -> None:
+    """
+    Send a card to a Webex room.
+
+    :param room_id: The ID of the Webex room.
+    :param card_content: The content of the card in JSON format.
+    """
+    url = base_url + "/v1/messages"
+    headers = {
+        "Authorization": "Bearer {}".format(access_token),
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "roomId": room_id,
+        "markdown": "This is your card",
+        "parentId": parentId,
+        "attachments": [
+            {
+                "contentType": "application/vnd.microsoft.card.adaptive",
+                "content": card_content,
+            }
+        ],
+    }
+
+    response = requests.post(url, headers=headers, json=payload)
+    response.raise_for_status()
+
+    print("Card sent successfully:", response.json())
+
+
+def execute_cmd(cmd: str, room_id: str, prev_msg_id: str) -> str:
+    if cmd.lower().startswith("cat-fact"):
         fact = get_catfact()
-        send_message(fact, room_id)
-    elif cmd.lower().startswith("/image"):
+        send_simple_text_message(room_id, fact, prev_msg_id)
+    elif cmd.lower().startswith("cat-image"):
         image = get_image()
-        send_image(image, room_id)
+        send_image(room_id, image, prev_msg_id)
+    elif cmd.lower().startswith("scan"):
+        send_card(room_id, scan_card, prev_msg_id)
     else:
-        send_message("Sorry, I didn't understand", room_id)
+        send_simple_text_message("Sorry, I didn't understand", room_id)
 
 
-@app.route("/webhook", methods=["POST"])
-def webhook():
+def get_actions_detail(id: str) -> dict:
+    url = base_url + f"/v1/attachment/actions/{id}"
+
+    r = requests.get(url, headers=headers)
+
+    r.raise_for_status()
+
+    return r.json()
+
+
+@app.route("/webhook/messages", methods=["POST"])
+def webhook_messages():
     json_data = request.json
-
-    print("\n")
-    print("WEBHOOK POST RECEIVED:")
-    print(json_data)
-    print("\n")
 
     # This is a VERY IMPORTANT loop prevention control step.
     # If you respond to all messages...  You will respond to the messages
@@ -174,17 +247,29 @@ def webhook():
 
     # get room
     room_id = json_data["data"]["roomId"]
-    room = get_room_details(room_id)
 
     # get message
     message_id = json_data["data"]["id"]
     message = get_message_details(message_id)
 
-    # print(room)
-    # print(message)
+    print(json_data)
 
     # parse message
-    execute_cmd(message["text"], room_id)
+    execute_cmd(message["text"], room_id, message_id)
+
+    return "OK"
+
+
+@app.route("/webhook/attachment-actions", methods=["POST"])
+def webhook_attachment_actions():
+    action = get_actions_detail(request.json["data"]["id"])
+    message_details = get_message_details(action["messageId"])
+
+    send_simple_text_message(
+        action["roomId"],
+        "Nmap scan result: Ports 22 and 80 are open.",
+        message_details["parentId"],
+    )
 
     return "OK"
 
