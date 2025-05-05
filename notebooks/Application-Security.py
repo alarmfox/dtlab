@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.10.7"
+__generated_with = "0.13.4"
 app = marimo.App(width="medium", app_title="DTLab - ApplicationSecurity")
 
 
@@ -8,31 +8,31 @@ app = marimo.App(width="medium", app_title="DTLab - ApplicationSecurity")
 def _(mo):
     mo.md(
         f"""
-        # Hashing
-        Hashing is a one-way encryption. Different ways to perform hashing
+    # Hashing
+    Hashing is a one-way encryption. Different ways to perform hashing
 
-        * Unsecure, non cryptographic: MD4, MD5\n
-        * Secure, non cryptographic: SHA-1, SHA-2, SHA-3\n
-        * Secure, cryptographic: bcrypt, argon2\n
+    * Unsecure, non cryptographic: MD4, MD5\n
+    * Secure, non cryptographic: SHA-1, SHA-2, SHA-3\n
+    * Secure, cryptographic: bcrypt, argon2\n
 
-        ## Setup
-        To run the shell command, use your Kali Linux virtual machine.
+    ## Setup
+    To run the shell command, use your Kali Linux virtual machine.
 
-        There is already a rockyou wordlist in kali, but you need to decompress it:
-        ```sh
-        sudo gunzip /usr/share/wordlists/rockyou.tar.gz
-        ```
-        Or you can download a local copy from the link below:
+    There is already a rockyou wordlist in kali, but you need to decompress it:
+    ```sh
+    sudo gunzip /usr/share/wordlists/rockyou.tar.gz
+    ```
+    Or you can download a local copy from the link below:
 
-        ```sh
-        curl -fL -O https://github.com/brannondorsey/naive-hashcat/releases/download/data/rockyou.txt
-        ```
+    ```sh
+    curl -fL -O https://github.com/brannondorsey/naive-hashcat/releases/download/data/rockyou.txt
+    ```
 
-        A useful command to know how an hash was generated
-        ```sh
-        hash-identifier <hash>
-        ```
-        """
+    A useful command to know how an hash was generated
+    ```sh
+    hash-identifier <hash>
+    ```
+    """
     )
     return
 
@@ -66,15 +66,7 @@ def _(argon2, mo, platform):
         ## Insert your passsword here: {password}
         """)
     md
-    return (
-        hash_len,
-        md,
-        memory_cost,
-        parallelism,
-        password,
-        salt_len,
-        time_cost,
-    )
+    return hash_len, memory_cost, parallelism, password, salt_len, time_cost
 
 
 @app.cell(hide_code=True)
@@ -118,9 +110,9 @@ def _(
     Hash: {'argon2 not supported' if platform.machine() == 'wasm32' else argon2_hash}
 
     ### Bcrypt
-    Salt: {bcrypt_salt.decode()}
+    Salt: {bcrypt_salt}
 
-    Hash: {bcrypt_hash.decode()}
+    Hash: {bcrypt_hash}
 
     ### MD5
     Not secure. Crackable with hashcat or john the ripper. Detect hash type with
@@ -145,7 +137,7 @@ def _(
     john -format=raw-sha256 --wordlist /usr/share/wordlists/rockyou.txt  hash.txt
     ```
     """)
-    return argon2_hash, bcrypt_hash, bcrypt_salt, md5, plaintext, sha256
+    return
 
 
 @app.cell
@@ -160,7 +152,6 @@ def _(mo, pd):
         Structured Query Language used to interact with a database. Very easy and prone to **injection**.
 
         Let's create a dummy database.
-
         """
     )
 
@@ -197,7 +188,7 @@ def _(contextlib, sqlite3):
         with conn as cur:
             data = cur.execute("SELECT * FROM users")
             print(data.fetchall())
-    return conn, cur, data
+    return
 
 
 @app.cell
@@ -224,13 +215,7 @@ def _(contextlib, mo, sqlite3):
 
     {login_button}
     """)
-    return (
-        handle_login,
-        login_button,
-        password_field,
-        result,
-        username_field,
-    )
+    return password_field, username_field
 
 
 @app.cell
@@ -239,13 +224,13 @@ def _(bcrypt, contextlib, sqlite3):
         with con as c:
             users = c.execute("SELECT * FROM users")
             for user in users:
-                hash = bcrypt.hashpw(user[2].encode(), bcrypt.gensalt()).decode()
+                hash = bcrypt.hashpw(user[2].encode(), bcrypt.gensalt())
                 c.execute(f"UPDATE users set password = '{hash}' WHERE id = {user[0]}")
 
         with con as c:
             users = c.execute("SELECT * FROM users")
             print(users.fetchall())
-    return c, con, hash, user, users
+    return
 
 
 @app.cell
@@ -270,15 +255,14 @@ def _(bcrypt, contextlib, mo, password_field, sqlite3, username_field):
 
     {better_button}
     """)
-    return better_button, better_login
+    return
 
 
 @app.cell
-def _(platform):
+def _():
     import hashlib
     import bcrypt
-    if platform.machine() != "wasm32":
-        import argon2
+    import argon2
     import pandas as pd
     import sqlite3
     import contextlib
