@@ -220,7 +220,7 @@ def execute_cmd(cmd: str, room_id: str, prev_msg_id: str) -> str:
     elif cmd.lower().startswith("scan"):
         send_card(room_id, scan_card, prev_msg_id)
     else:
-        send_simple_text_message("Sorry, I didn't understand", room_id)
+        send_simple_text_message(room_id, "Sorry, I didn't understand", prev_msg_id)
 
 
 def get_actions_detail(id: str) -> dict:
