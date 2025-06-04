@@ -9,7 +9,7 @@ The app will provide 3 core functionalities:
 * **Managing switches**: users will have a CRUD interface for switches;
 * **Managing routers**: users will have a CRUD interface for routers;
 
-You wil work to create a Docker deployment for this Flask application.
+You will work to create a Docker deployment for this Flask application.
 
 ## Instructions
 
