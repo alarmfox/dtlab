@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.13.4"
+__generated_with = "0.13.11"
 app = marimo.App(width="medium", app_title="DTLab - ApplicationSecurity")
 
 
@@ -261,19 +261,21 @@ def _(bcrypt, contextlib, mo, password_field, sqlite3, username_field):
 @app.cell
 def _():
     import hashlib
-    import bcrypt
-    import argon2
     import pandas as pd
     import sqlite3
     import contextlib
-    return argon2, bcrypt, contextlib, hashlib, pd, sqlite3
+    return contextlib, hashlib, pd, sqlite3
 
 
 @app.cell
 def _():
     import marimo as mo
-    import platform
-    return mo, platform
+    return (mo,)
+
+
+@app.cell
+def _():
+    return
 
 
 if __name__ == "__main__":
