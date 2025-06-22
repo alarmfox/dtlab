@@ -79,6 +79,10 @@ used as the current user password.
 Look around. There might be some password-protected files that can be cracked.
 What is the content of the file protected?
 
+### Crack the zip
+```sh
+fcrackzip -vul 1-4 <zip>
+```
 
 ### Encrypt
 Generate rsa key
